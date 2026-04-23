@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Monitor Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        
+        .status-good {
+            background: #00b894;
+            color: #fff;
+        }
+        
+        .status-warning {
+            background: #e17055;
+            color: #fff;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+        
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .metric {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #fff;
+            margin: 10px 0;
+        }
+        
+        .metric-label {
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #2d2d3a;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+        }
+        
+        .alert-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .alert-item {
+            padding: 10px;
+            background: rgba(231, 76, 60, 0.2);
+            margin-bottom: 10px;
+            border-radius: 10px;
+            border-right: 3px solid #e74c3c;
+        }
+        
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        .refresh-btn:hover {
+            background: #764ba2;
+        }
+        
+        .temp-good { color: #00b894; }
+        .temp-warning { color: #fdcb6e; }
+        .temp-critical { color: #e74c3c; }
+        
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖥️ Server Monitor Dashboard</h1>
+            <div id="status-badge"></div>
+            <div class="metric-label">Last update: <span id="timestamp">-</span></div>
+        </div>
+        
+        <div class="grid">
+            <div class="card">
+                <h3>📊 System Overview</h3>
+                <div class="metric-label">CPU Usage</div>
+                <div id="cpu-metric" class="metric">0%</div>
+                <div class="progress-bar">
+                    <div id="cpu-bar" class="progress-fill" style="width: 0%">0%</div>
+                </div>
+                
+                <div class="metric-label">RAM Usage</div>
+                <div id="ram-metric" class="metric">0%</div>
+                <div class="progress-bar">
+                    <div id="ram-bar" class="progress-fill" style="width: 0%">0%</div>
+                </div>
+                
+                <div class="metric-label">Uptime</div>
+                <div id="uptime" class="metric">-</div>
+            </div>
+            
+            <div class="card">
+                <h3>🌡️ Temperatures</h3>
+                <div id="temperatures"></div>
+            </div>
+            
+            <div class="card">
+                <h3>🌍 Internet Status</h3>
+                <div id="internet-status"></div>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="card">
+                <h3>💾 Disk Usage</h3>
+                <div id="disk-info"></div>
+            </div>
+            
+            <div class="card">
+                <h3>🔋 Battery Status</h3>
+                <div id="battery-status"></div>
+            </div>
+            
+            <div class="card">
+                <h3>🔌 Open Ports</h3>
+                <div id="ports-list"></div>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="card">
+                <h3>🔝 Top Processes</h3>
+                <div id="processes"></div>
+            </div>
+            
+            <div class="card">
+                <h3>⚠️ Recent Alerts</h3>
+                <div id="alerts" class="alert-list"></div>
+                <button class="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>📈 Resource Usage Chart</h3>
+            <div id="chart"></div>
+        </div>
+    </div>
+    
+    <script>
+        let chartData = [];
+        
+        async function refreshData() {
+            try {
+                const response = await fetch('/api/metrics');
+                const data = await response.json();
+                updateDashboard(data);
+                
+                chartData.push({
+                    time: new Date(data.timestamp).toLocaleTimeString(),
+                    cpu: data.cpu,
+                    ram: data.ram.percent
+                });
+                
+                if (chartData.length > 30) chartData.shift();
+                updateChart();
+                
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+        
+        function updateDashboard(data) {
+            const cpu = data.cpu;
+            document.getElementById('cpu-metric').textContent = `${cpu}%`;
+            document.getElementById('cpu-bar').style.width = `${cpu}%`;
+            document.getElementById('cpu-bar').textContent = `${cpu}%`;
+            
+            const ram = data.ram.percent;
+            document.getElementById('ram-metric').textContent = `${ram}%`;
+            document.getElementById('ram-bar').style.width = `${ram}%`;
+            document.getElementById('ram-bar').textContent = `${ram}%`;
+            
+            document.getElementById('uptime').textContent = data.system.uptime;
+            document.getElementById('timestamp').textContent = new Date(data.timestamp).toLocaleString();
+            
+            const statusBadge = document.getElementById('status-badge');
+            if (cpu < 80 && ram < 80) {
+                statusBadge.innerHTML = '<span class="status status-good">🟢 Status: Good</span>';
+            } else {
+                statusBadge.innerHTML = '<span class="status status-warning">🔴 Status: Warning</span>';
+            }
+            
+            // Temperatures
+            const temps = data.temperatures;
+            let tempsHtml = '';
+            for (const [name, temp] of Object.entries(temps)) {
+                let tempClass = 'temp-good';
+                if (typeof temp === 'number') {
+                    if (temp > 80) tempClass = 'temp-critical';
+                    else if (temp > 60) tempClass = 'temp-warning';
+                }
+                tempsHtml += `<div>${name}: <span class="${tempClass}">${temp}°C</span></div>`;
+            }
+            document.getElementById('temperatures').innerHTML = tempsHtml || '<div>No temperature data</div>';
+            
+            // Internet
+            const internet = data.internet;
+            document.getElementById('internet-status').innerHTML = `
+                <div>🌐 Connection: ${internet.connected ? '🟢 Connected' : '🔴 Disconnected'}</div>
+                <div>📡 Ping: ${internet.ping ? internet.ping + 'ms' : 'N/A'}</div>
+                ${internet.speed ? `<div>📥 Download: ${internet.speed.download} Mbps</div>` : ''}
+                ${internet.speed ? `<div>📤 Upload: ${internet.speed.upload} Mbps</div>` : ''}
+            `;
+            
+            // Disk
+            const diskHtml = data.disk.map(disk => `
+                <div>💿 ${disk.device} (${disk.mountpoint})</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${disk.percent}%">${disk.percent}%</div>
+                </div>
+                <div>Used: ${disk.used}GB / ${disk.total}GB</div>
+                <br>
+            `).join('');
+            document.getElementById('disk-info').innerHTML = diskHtml || '<div>No disk data</div>';
+            
+            // Battery
+            if (data.battery) {
+                document.getElementById('battery-status').innerHTML = `
+                    <div>🔋 Battery: ${data.battery.percent}%</div>
+                    <div>⚡ Status: ${data.battery.status}</div>
+                    <div>⏰ Time left: ${data.battery.seconds_left}</div>
+                `;
+            } else {
+                document.getElementById('battery-status').innerHTML = '<div>No battery detected (desktop PC)</div>';
+            }
+            
+            // Ports
+            const portsHtml = data.ports.open.map(port => `
+                <div>🔓 Port ${port.port}: ${port.service}</div>
+            `).join('');
+            document.getElementById('ports-list').innerHTML = portsHtml || '<div>No sensitive ports open</div>';
+            
+            // Processes
+            const processesHtml = `
+                <div><strong>🔥 Top CPU:</strong></div>
+                ${data.processes.top_cpu.map(p => `
+                    <div>📌 ${p.name || 'Unknown'} - CPU: ${(p.cpu_percent || 0).toFixed(1)}%</div>
+                `).join('')}
+                <br>
+                <div><strong>💾 Top RAM:</strong></div>
+                ${data.processes.top_memory.map(p => `
+                    <div>📌 ${p.name || 'Unknown'} - RAM: ${(p.memory_percent || 0).toFixed(1)}%</div>
+                `).join('')}
+            `;
+            document.getElementById('processes').innerHTML = processesHtml;
+        }
+        
+        async function loadAlerts() {
+            try {
+                const response = await fetch('/api/alerts');
+                const alerts = await response.json();
+                
+                const alertsHtml = alerts.map(alert => `
+                    <div class="alert-item">
+                        <strong>${new Date(alert.time).toLocaleString()}</strong><br>
+                        ${alert.message}
+                    </div>
+                `).join('');
+                
+                document.getElementById('alerts').innerHTML = alertsHtml || '<div>No alerts</div>';
+            } catch (error) {
+                console.error('Error loading alerts:', error);
+            }
+        }
+        
+        function updateChart() {
+            const trace1 = {
+                x: chartData.map(d => d.time),
+                y: chartData.map(d => d.cpu),
+                name: 'CPU (%)',
+                type: 'scatter',
+                line: { color: '#667eea', width: 2 }
+            };
+            
+            const trace2 = {
+                x: chartData.map(d => d.time),
+                y: chartData.map(d => d.ram),
+                name: 'RAM (%)',
+                type: 'scatter',
+                line: { color: '#e74c3c', width: 2 }
+            };
+            
+            const layout = {
+                title: 'Resource Usage (Last 30 minutes)',
+                xaxis: { title: 'Time', gridcolor: '#2d2d3a' },
+                yaxis: { title: 'Usage (%)', range: [0, 100], gridcolor: '#2d2d3a' },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#fff' }
+            };
+            
+            Plotly.newPlot('chart', [trace1, trace2], layout);
+        }
+        
+        refreshData();
+        loadAlerts();
+        setInterval(() => {
+            refreshData();
+            loadAlerts();
+        }, 5000);
+    </script>
+</body>
+</html>
